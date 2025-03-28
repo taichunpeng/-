@@ -1,0 +1,435 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词对对碰</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            padding: 5px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            user-select: none;
+        }
+        
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .card.english {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .card.chinese {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+        
+        .card.selected {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 3px #4caf50;
+        }
+        
+        .card.matched {
+            visibility: hidden;
+            opacity: 0;
+            transform: scale(0);
+        }
+        
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        button {
+            padding: 10px 15px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #388e3c;
+        }
+        
+        .config-panel {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        
+        .word-pair {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .word-pair input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .add-pair {
+            margin-top: 10px;
+        }
+        
+        .status {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        @media (max-width: 600px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            }
+            
+            .card {
+                height: 60px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>单词对对碰</h1>
+    
+    <div class="game-container">
+        <div class="cards-grid" id="cardsGrid"></div>
+        
+        <div class="status" id="status">找到所有匹配的单词对！</div>
+        
+        <div class="controls">
+            <button id="newGameBtn">新游戏</button>
+            <button id="configBtn">配置单词</button>
+        </div>
+        
+        <div class="config-panel" id="configPanel">
+            <h2>配置单词对</h2>
+            <div id="wordPairsContainer">
+                <!-- 单词对将通过JS动态添加 -->
+            </div>
+            <button class="add-pair" id="addPairBtn">添加单词对</button>
+            <div style="margin-top: 20px;">
+                <button id="saveConfigBtn">保存配置</button>
+                <button id="cancelConfigBtn" style="background-color: #f44336; margin-left: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+    
+    <audio id="cardAudio"></audio>
+    <audio id="matchAudio" src="https://www.soundjay.com/buttons/sounds/button-09.mp3" preload="auto"></audio>
+    
+    <script>
+        // 默认单词配置
+        let wordPairs = [
+            { english: "apple", chinese: "苹果" },
+            { english: "banana", chinese: "香蕉" },
+            { english: "orange", chinese: "橙子" },
+            { english: "grape", chinese: "葡萄" },
+            { english: "watermelon", chinese: "西瓜" },
+            { english: "pear", chinese: "梨" },
+            { english: "peach", chinese: "桃子" },
+            { english: "strawberry", chinese: "草莓" },
+            { english: "pineapple", chinese: "菠萝" },
+            { english: "lemon", chinese: "柠檬" }
+        ];
+        
+        // 游戏状态
+        let selectedCards = [];
+        let matchedPairs = 0;
+        let speechSynthesis = window.speechSynthesis;
+        
+        // DOM 元素
+        const cardsGrid = document.getElementById('cardsGrid');
+        const statusEl = document.getElementById('status');
+        const newGameBtn = document.getElementById('newGameBtn');
+        const configBtn = document.getElementById('configBtn');
+        const configPanel = document.getElementById('configPanel');
+        const wordPairsContainer = document.getElementById('wordPairsContainer');
+        const addPairBtn = document.getElementById('addPairBtn');
+        const saveConfigBtn = document.getElementById('saveConfigBtn');
+        const cancelConfigBtn = document.getElementById('cancelConfigBtn');
+        const cardAudio = document.getElementById('cardAudio');
+        const matchAudio = document.getElementById('matchAudio');
+        
+        // 初始化游戏
+        function initGame() {
+            // 清空游戏区域
+            cardsGrid.innerHTML = '';
+            selectedCards = [];
+            matchedPairs = 0;
+            statusEl.textContent = "找到所有匹配的单词对！";
+            
+            // 创建卡片数组
+            let cards = [];
+            wordPairs.forEach(pair => {
+                cards.push({
+                    type: 'english',
+                    content: pair.english,
+                    pairId: pair.english + pair.chinese
+                });
+                cards.push({
+                    type: 'chinese',
+                    content: pair.chinese,
+                    pairId: pair.english + pair.chinese
+                });
+            });
+            
+            // 洗牌
+            cards = shuffleArray(cards);
+            
+            // 创建卡片元素
+            cards.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `card ${card.type}`;
+                cardEl.textContent = card.content;
+                cardEl.dataset.pairId = card.pairId;
+                cardEl.dataset.index = index;
+                
+                cardEl.addEventListener('click', () => handleCardClick(cardEl, card));
+                cardsGrid.appendChild(cardEl);
+            });
+        }
+        
+        // 处理卡片点击
+        function handleCardClick(cardEl, cardData) {
+            // 如果已经匹配或是同一张卡片，则忽略
+            if (cardEl.classList.contains('matched') || 
+                cardEl.classList.contains('selected') ||
+                selectedCards.length >= 2) {
+                return;
+            }
+            
+            // 播放单词发音
+            speakWord(cardData.content, cardData.type === 'english' ? 'en-US' : 'zh-CN');
+            
+            // 选中卡片
+            cardEl.classList.add('selected');
+            selectedCards.push({ element: cardEl, data: cardData });
+            
+            // 如果选中了两张卡片
+            if (selectedCards.length === 2) {
+                const card1 = selectedCards[0];
+                const card2 = selectedCards[1];
+                
+                // 检查是否匹配
+                if (card1.data.pairId === card2.data.pairId && 
+                    card1.data.type !== card2.data.type) {
+                    // 匹配成功
+                    setTimeout(() => {
+                        card1.element.classList.add('matched');
+                        card2.element.classList.add('matched');
+                        selectedCards = [];
+                        matchedPairs++;
+                        
+                        // 播放匹配成功的音效
+                        matchAudio.currentTime = 0;
+                        matchAudio.play();
+                        
+                        // 检查游戏是否结束
+                        if (matchedPairs === wordPairs.length) {
+                            statusEl.textContent = "恭喜！你完成了所有匹配！";
+                        }
+                    }, 500);
+                } else {
+                    // 不匹配
+                    setTimeout(() => {
+                        card1.element.classList.remove('selected');
+                        card2.element.classList.remove('selected');
+                        selectedCards = [];
+                    }, 1000);
+                }
+            }
+        }
+        
+        // 播放单词发音
+        function speakWord(text, lang) {
+            if (speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                speechSynthesis.speak(utterance);
+            }
+        }
+        
+        // 洗牌函数
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+        
+        // 显示配置面板
+        function showConfigPanel() {
+            wordPairsContainer.innerHTML = '';
+            
+            wordPairs.forEach((pair, index) => {
+                addWordPairInput(pair.english, pair.chinese, index);
+            });
+            
+            configPanel.style.display = 'block';
+        }
+        
+        // 添加单词对输入框
+        function addWordPairInput(english = '', chinese = '', index = -1) {
+            const pairDiv = document.createElement('div');
+            pairDiv.className = 'word-pair';
+            
+            const englishInput = document.createElement('input');
+            englishInput.type = 'text';
+            englishInput.placeholder = '英文';
+            englishInput.value = english;
+            englishInput.dataset.lang = 'english';
+            if (index !== -1) englishInput.dataset.index = index;
+            
+            const chineseInput = document.createElement('input');
+            chineseInput.type = 'text';
+            chineseInput.placeholder = '中文';
+            chineseInput.value = chinese;
+            chineseInput.dataset.lang = 'chinese';
+            if (index !== -1) chineseInput.dataset.index = index;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '删除';
+            removeBtn.style.backgroundColor = '#f44336';
+            removeBtn.addEventListener('click', () => {
+                if (wordPairsContainer.children.length > 1) {
+                    wordPairsContainer.removeChild(pairDiv);
+                } else {
+                    englishInput.value = '';
+                    chineseInput.value = '';
+                }
+            });
+            
+            pairDiv.appendChild(englishInput);
+            pairDiv.appendChild(chineseInput);
+            pairDiv.appendChild(removeBtn);
+            wordPairsContainer.appendChild(pairDiv);
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            const inputs = wordPairsContainer.querySelectorAll('input');
+            const newPairs = [];
+            
+            // 按索引分组
+            const pairsMap = {};
+            
+            inputs.forEach(input => {
+                const index = input.dataset.index || 'new_' + Math.random().toString(36).substr(2, 9);
+                if (!pairsMap[index]) {
+                    pairsMap[index] = {};
+                }
+                pairsMap[index][input.dataset.lang] = input.value.trim();
+            });
+            
+            // 转换为数组
+            for (const index in pairsMap) {
+                const pair = pairsMap[index];
+                if (pair.english && pair.chinese) {
+                    newPairs.push({
+                        english: pair.english,
+                        chinese: pair.chinese
+                    });
+                }
+            }
+            
+            if (newPairs.length > 0) {
+                wordPairs = newPairs;
+                localStorage.setItem('wordPairs', JSON.stringify(wordPairs));
+                configPanel.style.display = 'none';
+                initGame();
+            } else {
+                alert('请至少添加一个有效的单词对！');
+            }
+        }
+        
+        // 从本地存储加载配置
+        function loadConfig() {
+            const savedPairs = localStorage.getItem('wordPairs');
+            if (savedPairs) {
+                try {
+                    wordPairs = JSON.parse(savedPairs);
+                } catch (e) {
+                    console.error('Failed to parse saved word pairs', e);
+                }
+            }
+        }
+        
+        // 事件监听
+        newGameBtn.addEventListener('click', initGame);
+        configBtn.addEventListener('click', showConfigPanel);
+        addPairBtn.addEventListener('click', () => addWordPairInput());
+        saveConfigBtn.addEventListener('click', saveConfig);
+        cancelConfigBtn.addEventListener('click', () => {
+            configPanel.style.display = 'none';
+        });
+        
+        // 初始化
+        loadConfig();
+        initGame();
+    </script>
+</body>
+</html>
