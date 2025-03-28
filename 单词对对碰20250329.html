@@ -1,0 +1,491 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>单词对对碰</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            box-sizing: border-box;
+            margin: 0;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 10px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            text-align: center;
+            padding: 5px;
+            box-sizing: border-box;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            user-select: none;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .card.english {
+            background-color: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .card.chinese {
+            background-color: #ffebee;
+            color: #d32f2f;
+        }
+
+        .card.selected {
+            transform: scale(0.95);
+            box-shadow: 0 0 0 3px #4caf50;
+        }
+
+        .card.matched {
+            animation: matchSuccess 0.5s ease-out forwards;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #388e3c;
+        }
+
+        .config-panel {
+            width: 100%;
+            max-width: 600px;
+            margin-top: 30px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .word-pair {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .word-pair input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .status {
+            margin-top: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            text-align: center;
+        }
+
+        .stats {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .score {
+            font-size: 20px;
+            color: #4CAF50;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        #restoreDefaultBtn {
+            background-color: #ff9800;
+            margin-right: 10px;
+        }
+
+        .timer {
+            font-size: 20px;
+            color: #2196F3;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+
+        .sound-control {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        @keyframes matchSuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1) rotate(10deg); }
+            100% { transform: scale(0); }
+        }
+
+        @keyframes scorePop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .score-pop {
+            animation: scorePop 0.5s ease-out;
+        }
+
+        @media (max-width: 600px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+            }
+            
+            .card {
+                height: 60px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>单词对对碰</h1>
+    <div class="timer" id="timer">时间: 0s</div>
+    
+    <div class="sound-control">
+        <label>
+            <input type="checkbox" id="soundToggle" checked> 开启音效
+        </label>
+    </div>
+
+    <div class="game-container">
+        <div class="cards-grid" id="cardsGrid"></div>
+        <div class="status" id="status">找到所有匹配的单词对！</div>
+        
+        <div class="controls">
+            <button id="newGameBtn">新游戏</button>
+            <button id="configBtn">配置单词</button>
+        </div>
+        
+        <div class="config-panel" id="configPanel">
+            <h2>配置单词对</h2>
+            <div id="wordPairsContainer"></div>
+            <button class="add-pair" id="addPairBtn">添加单词对</button>
+            <div style="margin-top: 20px;">
+                <button id="restoreDefaultBtn">恢复默认</button>
+                <button id="saveConfigBtn">保存配置</button>
+                <button id="cancelConfigBtn" style="background-color: #f44336; margin-left: 10px;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_PAIRS = [
+            { english: "apple", chinese: "苹果" },
+            { english: "banana", chinese: "香蕉" },
+            { english: "orange", chinese: "橙子" },
+            { english: "grape", chinese: "葡萄" },
+            { english: "watermelon", chinese: "西瓜" }
+        ];
+
+        let wordPairs = [...DEFAULT_PAIRS];
+        let selectedCards = [];
+        let matchedPairs = 0;
+        let totalAttempts = 0;
+        let correctAttempts = 0;
+        let wrongAttempts = 0;
+        let timeElapsed = 0;
+        let gameTimer;
+        let soundEnabled = true;
+        let speechSynthesis = window.speechSynthesis;
+        let audioContext;
+
+        const elements = {
+            cardsGrid: document.getElementById('cardsGrid'),
+            statusEl: document.getElementById('status'),
+            newGameBtn: document.getElementById('newGameBtn'),
+            configBtn: document.getElementById('configBtn'),
+            configPanel: document.getElementById('configPanel'),
+            wordPairsContainer: document.getElementById('wordPairsContainer'),
+            addPairBtn: document.getElementById('addPairBtn'),
+            saveConfigBtn: document.getElementById('saveConfigBtn'),
+            cancelConfigBtn: document.getElementById('cancelConfigBtn'),
+            restoreDefaultBtn: document.getElementById('restoreDefaultBtn'),
+            timer: document.getElementById('timer'),
+            soundToggle: document.getElementById('soundToggle')
+        };
+
+        // 初始化游戏
+        function initGame() {
+            clearInterval(gameTimer);
+            timeElapsed = 0;
+            elements.timer.textContent = '时间: 0s';
+            
+            gameTimer = setInterval(() => {
+                timeElapsed++;
+                elements.timer.textContent = `时间: ${timeElapsed}s`;
+            }, 1000);
+
+            elements.cardsGrid.innerHTML = '';
+            selectedCards = [];
+            matchedPairs = totalAttempts = correctAttempts = wrongAttempts = 0;
+            updateStatus();
+
+            const cards = shuffleArray([...wordPairs.flatMap(pair => [
+                { type: 'english', content: pair.english, pairId: pair.english + pair.chinese },
+                { type: 'chinese', content: pair.chinese, pairId: pair.english + pair.chinese }
+            ])]);
+
+            cards.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                cardEl.className = `card ${card.type}`;
+                cardEl.textContent = card.content;
+                cardEl.dataset.pairId = card.pairId;
+                cardEl.addEventListener('click', () => handleCardClick(cardEl, card));
+                elements.cardsGrid.appendChild(cardEl);
+            });
+        }
+
+        function handleCardClick(cardEl, cardData) {
+            if (cardEl.classList.contains('matched') || 
+                cardEl.classList.contains('selected') ||
+                selectedCards.length >= 2) return;
+
+            speakWord(cardData.content, cardData.type === 'english' ? 'en-US' : 'zh-CN');
+            
+            cardEl.classList.add('selected');
+            selectedCards.push({ element: cardEl, data: cardData });
+            
+            if (selectedCards.length === 2) {
+                totalAttempts++;
+                const [card1, card2] = selectedCards;
+                
+                if (card1.data.pairId === card2.data.pairId && card1.data.type !== card2.data.type) {
+                    correctAttempts++;
+                    setTimeout(() => {
+                        card1.element.classList.add('matched');
+                        card2.element.classList.add('matched');
+                        selectedCards = [];
+                        matchedPairs++;
+                        playMatchSound();
+                        updateStatus(matchedPairs === wordPairs.length);
+                    }, 500);
+                } else {
+                    wrongAttempts++;
+                    setTimeout(() => {
+                        card1.element.classList.remove('selected');
+                        card2.element.classList.remove('selected');
+                        selectedCards = [];
+                        updateStatus();
+                    }, 1000);
+                }
+            }
+        }
+
+        function updateStatus(isFinal = false) {
+            if (isFinal) {
+                clearInterval(gameTimer);
+                const total = correctAttempts + wrongAttempts;
+                const accuracy = total === 0 ? 0 : Math.round((correctAttempts / total) * 100);
+                const score = Math.max(0, accuracy);
+
+                elements.statusEl.innerHTML = `
+                    <div>游戏完成！</div>
+                    <div class="stats">
+                        总配对次数：${total}<br>
+                        正确：${correctAttempts} | 错误：${wrongAttempts}<br>
+                        用时：${timeElapsed}秒
+                    </div>
+                    <div class="score score-pop">最终得分：${score}分</div>
+                `;
+            } else {
+                elements.statusEl.innerHTML = `
+                    <div>进度：${matchedPairs}/${wordPairs.length}</div>
+                    <div class="stats">
+                        当前尝试：${totalAttempts}<br>
+                        正确：${correctAttempts} | 错误：${wrongAttempts}
+                    </div>
+                `;
+            }
+        }
+
+        function playMatchSound() {
+            if (!soundEnabled || !audioContext) return;
+
+            const now = audioContext.currentTime;
+            const osc1 = audioContext.createOscillator();
+            const osc2 = audioContext.createOscillator();
+            const gain = audioContext.createGain();
+
+            osc1.type = osc2.type = "square";
+            osc1.frequency.setValueAtTime(784, now);
+            osc2.frequency.setValueAtTime(1046.5, now);
+            
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+            osc1.connect(gain);
+            osc2.connect(gain);
+            gain.connect(audioContext.destination);
+
+            osc1.start(now);
+            osc2.start(now);
+            osc1.stop(now + 0.8);
+            osc2.stop(now + 0.8);
+        }
+
+        function speakWord(text, lang) {
+            if (speechSynthesis) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = lang;
+                speechSynthesis.speak(utterance);
+            }
+        }
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 配置管理
+        function showConfigPanel() {
+            elements.wordPairsContainer.innerHTML = '';
+            wordPairs.forEach(pair => addWordPairInput(pair.english, pair.chinese));
+            addWordPairInput();
+            elements.configPanel.style.display = 'block';
+        }
+
+        function addWordPairInput(english = '', chinese = '') {
+            const pairDiv = document.createElement('div');
+            pairDiv.className = 'word-pair';
+            
+            const enInput = document.createElement('input');
+            enInput.placeholder = '英文';
+            enInput.value = english;
+            
+            const cnInput = document.createElement('input');
+            cnInput.placeholder = '中文';
+            cnInput.value = chinese;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.textContent = '删除';
+            removeBtn.style.backgroundColor = '#f44336';
+            removeBtn.onclick = () => pairDiv.parentElement.childElementCount > 1 
+                ? pairDiv.remove() 
+                : (enInput.value = cnInput.value = '');
+
+            pairDiv.append(enInput, cnInput, removeBtn);
+            elements.wordPairsContainer.appendChild(pairDiv);
+        }
+
+        function saveConfig() {
+            const newPairs = [];
+            document.querySelectorAll('.word-pair').forEach(pair => {
+                const [en, cn] = pair.querySelectorAll('input');
+                if (en.value.trim() && cn.value.trim()) {
+                    newPairs.push({ english: en.value.trim(), chinese: cn.value.trim() });
+                }
+            });
+
+            if (newPairs.length) {
+                wordPairs = newPairs;
+                localStorage.setItem('wordPairs', JSON.stringify(wordPairs));
+                elements.configPanel.style.display = 'none';
+                initGame();
+            } else {
+                alert('请至少保留一个有效的单词对！');
+            }
+        }
+
+        function restoreDefaultConfig() {
+            if (confirm("确定要恢复默认设置吗？当前配置将会丢失！")) {
+                wordPairs = [...DEFAULT_PAIRS];
+                localStorage.removeItem('wordPairs');
+                elements.configPanel.style.display = 'none';
+                initGame();
+            }
+        }
+
+        function loadConfig() {
+            try {
+                const saved = localStorage.getItem('wordPairs');
+                wordPairs = saved ? JSON.parse(saved) : [...DEFAULT_PAIRS];
+            } catch {
+                localStorage.removeItem('wordPairs');
+                wordPairs = [...DEFAULT_PAIRS];
+            }
+        }
+
+        // 初始化
+        try {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) {
+            console.log('音频支持受限');
+        }
+
+        elements.newGameBtn.addEventListener('click', initGame);
+        elements.configBtn.addEventListener('click', showConfigPanel);
+        elements.addPairBtn.addEventListener('click', () => addWordPairInput());
+        elements.saveConfigBtn.addEventListener('click', saveConfig);
+        elements.cancelConfigBtn.addEventListener('click', () => elements.configPanel.style.display = 'none');
+        elements.restoreDefaultBtn.addEventListener('click', restoreDefaultConfig);
+        elements.soundToggle.addEventListener('change', e => soundEnabled = e.target.checked);
+
+        loadConfig();
+        initGame();
+    </script>
+</body>
+</html>
